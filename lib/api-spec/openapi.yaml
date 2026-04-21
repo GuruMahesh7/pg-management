@@ -3,34 +3,707 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: PG / Hostel Management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: dashboard
+  - name: properties
+  - name: rooms
+  - name: beds
+  - name: tenants
+  - name: payments
+  - name: complaints
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
           content:
             application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Aggregated metrics for the admin dashboard
+      responses:
+        "200":
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardSummary" }
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Recent activity feed
+      responses:
+        "200":
+          description: Recent activity items
+          content:
+            application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                type: array
+                items: { $ref: "#/components/schemas/ActivityItem" }
+
+  /dashboard/occupancy-trend:
+    get:
+      operationId: getOccupancyTrend
+      tags: [dashboard]
+      summary: Occupancy trend over the last 6 months
+      responses:
+        "200":
+          description: Trend points
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OccupancyPoint" }
+
+  /dashboard/revenue-breakdown:
+    get:
+      operationId: getRevenueBreakdown
+      tags: [dashboard]
+      summary: Monthly revenue breakdown by status
+      responses:
+        "200":
+          description: Revenue breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RevenueBucket" }
+
+  /properties:
+    get:
+      operationId: listProperties
+      tags: [properties]
+      responses:
+        "200":
+          description: Properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Property" }
+    post:
+      operationId: createProperty
+      tags: [properties]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PropertyInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Property" }
+  /properties/{id}:
+    get:
+      operationId: getProperty
+      tags: [properties]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Property
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PropertyDetail" }
+    patch:
+      operationId: updateProperty
+      tags: [properties]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PropertyInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Property" }
+    delete:
+      operationId: deleteProperty
+      tags: [properties]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted }
+
+  /rooms:
+    get:
+      operationId: listRooms
+      tags: [rooms]
+      parameters:
+        - { name: propertyId, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Rooms with bed occupancy
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RoomWithBeds" }
+    post:
+      operationId: createRoom
+      tags: [rooms]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoomInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Room" }
+  /rooms/{id}:
+    patch:
+      operationId: updateRoom
+      tags: [rooms]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoomInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Room" }
+    delete:
+      operationId: deleteRoom
+      tags: [rooms]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted }
+
+  /beds/{id}/assign:
+    post:
+      operationId: assignBed
+      tags: [beds]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignBedRequest" }
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bed" }
+  /beds/{id}/unassign:
+    post:
+      operationId: unassignBed
+      tags: [beds]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Unassigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bed" }
+
+  /tenants:
+    get:
+      operationId: listTenants
+      tags: [tenants]
+      responses:
+        "200":
+          description: Tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TenantWithBed" }
+    post:
+      operationId: createTenant
+      tags: [tenants]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TenantInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tenant" }
+  /tenants/{id}:
+    get:
+      operationId: getTenant
+      tags: [tenants]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Tenant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TenantDetail" }
+    patch:
+      operationId: updateTenant
+      tags: [tenants]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TenantInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tenant" }
+    delete:
+      operationId: deleteTenant
+      tags: [tenants]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted }
+
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [paid, pending, overdue] } }
+        - { name: tenantId, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PaymentWithTenant" }
+    post:
+      operationId: createPayment
+      tags: [payments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payment" }
+  /payments/{id}/mark-paid:
+    post:
+      operationId: markPaymentPaid
+      tags: [payments]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MarkPaidRequest" }
+      responses:
+        "200":
+          description: Marked paid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payment" }
+  /payments/generate-monthly:
+    post:
+      operationId: generateMonthlyRent
+      tags: [payments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GenerateMonthlyRequest" }
+      responses:
+        "200":
+          description: Generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated: { type: integer }
+
+  /complaints:
+    get:
+      operationId: listComplaints
+      tags: [complaints]
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [open, in_progress, resolved] } }
+      responses:
+        "200":
+          description: Complaints
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ComplaintWithTenant" }
+    post:
+      operationId: createComplaint
+      tags: [complaints]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ComplaintInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Complaint" }
+  /complaints/{id}:
+    patch:
+      operationId: updateComplaintStatus
+      tags: [complaints]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateComplaintStatusRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Complaint" }
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
+        status: { type: string }
 
+    AssignBedRequest:
+      type: object
+      required: [tenantId]
+      properties:
+        tenantId: { type: integer }
+
+    MarkPaidRequest:
+      type: object
+      required: [method]
+      properties:
+        method: { type: string, enum: [cash, upi, bank_transfer, card] }
+
+    GenerateMonthlyRequest:
+      type: object
+      required: [month, year]
+      properties:
+        month: { type: integer, minimum: 1, maximum: 12 }
+        year: { type: integer }
+
+    UpdateComplaintStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [open, in_progress, resolved] }
+        resolutionNote: { type: string, nullable: true }
+
+    DashboardSummary:
+      type: object
+      required:
+        - totalProperties
+        - totalRooms
+        - totalBeds
+        - occupiedBeds
+        - vacantBeds
+        - occupancyRate
+        - totalTenants
+        - pendingRentAmount
+        - pendingRentCount
+        - overdueRentCount
+        - openComplaints
+        - inProgressComplaints
+        - monthlyRevenue
+      properties:
+        totalProperties: { type: integer }
+        totalRooms: { type: integer }
+        totalBeds: { type: integer }
+        occupiedBeds: { type: integer }
+        vacantBeds: { type: integer }
+        occupancyRate: { type: number }
+        totalTenants: { type: integer }
+        pendingRentAmount: { type: number }
+        pendingRentCount: { type: integer }
+        overdueRentCount: { type: integer }
+        openComplaints: { type: integer }
+        inProgressComplaints: { type: integer }
+        monthlyRevenue: { type: number }
+
+    ActivityItem:
+      type: object
+      required: [id, type, title, description, createdAt]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [payment, complaint, tenant, assignment] }
+        title: { type: string }
+        description: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    OccupancyPoint:
+      type: object
+      required: [month, occupied, vacant]
+      properties:
+        month: { type: string }
+        occupied: { type: integer }
+        vacant: { type: integer }
+
+    RevenueBucket:
+      type: object
+      required: [month, paid, pending, overdue]
+      properties:
+        month: { type: string }
+        paid: { type: number }
+        pending: { type: number }
+        overdue: { type: number }
+
+    Property:
+      type: object
+      required: [id, name, address, city, totalFloors, contactPhone, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        address: { type: string }
+        city: { type: string }
+        totalFloors: { type: integer }
+        contactPhone: { type: string }
+        description: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    PropertyInput:
+      type: object
+      required: [name, address, city, totalFloors, contactPhone]
+      properties:
+        name: { type: string }
+        address: { type: string }
+        city: { type: string }
+        totalFloors: { type: integer }
+        contactPhone: { type: string }
+        description: { type: string, nullable: true }
+
+    PropertyDetail:
+      allOf:
+        - $ref: "#/components/schemas/Property"
+        - type: object
+          required: [totalRooms, totalBeds, occupiedBeds]
+          properties:
+            totalRooms: { type: integer }
+            totalBeds: { type: integer }
+            occupiedBeds: { type: integer }
+
+    Room:
+      type: object
+      required: [id, propertyId, roomNumber, floor, capacity, monthlyRent, roomType]
+      properties:
+        id: { type: integer }
+        propertyId: { type: integer }
+        roomNumber: { type: string }
+        floor: { type: integer }
+        capacity: { type: integer }
+        monthlyRent: { type: number }
+        roomType: { type: string, enum: [single, double, triple, quad, dormitory] }
+        amenities: { type: string, nullable: true }
+
+    RoomInput:
+      type: object
+      required: [propertyId, roomNumber, floor, capacity, monthlyRent, roomType]
+      properties:
+        propertyId: { type: integer }
+        roomNumber: { type: string }
+        floor: { type: integer }
+        capacity: { type: integer }
+        monthlyRent: { type: number }
+        roomType: { type: string, enum: [single, double, triple, quad, dormitory] }
+        amenities: { type: string, nullable: true }
+
+    Bed:
+      type: object
+      required: [id, roomId, bedLabel, isOccupied]
+      properties:
+        id: { type: integer }
+        roomId: { type: integer }
+        bedLabel: { type: string }
+        isOccupied: { type: boolean }
+        tenantId: { type: integer, nullable: true }
+        tenantName: { type: string, nullable: true }
+
+    RoomWithBeds:
+      allOf:
+        - $ref: "#/components/schemas/Room"
+        - type: object
+          required: [propertyName, beds, occupiedCount]
+          properties:
+            propertyName: { type: string }
+            beds:
+              type: array
+              items: { $ref: "#/components/schemas/Bed" }
+            occupiedCount: { type: integer }
+
+    Tenant:
+      type: object
+      required: [id, fullName, email, phone, joinedAt, status]
+      properties:
+        id: { type: integer }
+        fullName: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        gender: { type: string, enum: [male, female, other], nullable: true }
+        dateOfBirth: { type: string, format: date, nullable: true }
+        occupation: { type: string, nullable: true }
+        emergencyContactName: { type: string, nullable: true }
+        emergencyContactPhone: { type: string, nullable: true }
+        idProofType: { type: string, enum: [aadhaar, passport, driving_license, voter_id, pan], nullable: true }
+        idProofNumber: { type: string, nullable: true }
+        permanentAddress: { type: string, nullable: true }
+        joinedAt: { type: string, format: date }
+        status: { type: string, enum: [active, inactive, vacated] }
+        avatarUrl: { type: string, nullable: true }
+
+    TenantInput:
+      type: object
+      required: [fullName, email, phone, joinedAt]
+      properties:
+        fullName: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        gender: { type: string, enum: [male, female, other], nullable: true }
+        dateOfBirth: { type: string, format: date, nullable: true }
+        occupation: { type: string, nullable: true }
+        emergencyContactName: { type: string, nullable: true }
+        emergencyContactPhone: { type: string, nullable: true }
+        idProofType: { type: string, enum: [aadhaar, passport, driving_license, voter_id, pan], nullable: true }
+        idProofNumber: { type: string, nullable: true }
+        permanentAddress: { type: string, nullable: true }
+        joinedAt: { type: string, format: date }
+        status: { type: string, enum: [active, inactive, vacated] }
+
+    TenantWithBed:
+      allOf:
+        - $ref: "#/components/schemas/Tenant"
+        - type: object
+          properties:
+            bedId: { type: integer, nullable: true }
+            bedLabel: { type: string, nullable: true }
+            roomNumber: { type: string, nullable: true }
+            propertyName: { type: string, nullable: true }
+            monthlyRent: { type: number, nullable: true }
+
+    TenantDetail:
+      allOf:
+        - $ref: "#/components/schemas/TenantWithBed"
+        - type: object
+          properties:
+            recentPayments:
+              type: array
+              items: { $ref: "#/components/schemas/Payment" }
+            complaints:
+              type: array
+              items: { $ref: "#/components/schemas/Complaint" }
+
+    Payment:
+      type: object
+      required: [id, tenantId, amount, status, dueDate, month, year, createdAt]
+      properties:
+        id: { type: integer }
+        tenantId: { type: integer }
+        amount: { type: number }
+        status: { type: string, enum: [paid, pending, overdue] }
+        dueDate: { type: string, format: date }
+        paidDate: { type: string, format: date, nullable: true }
+        month: { type: integer }
+        year: { type: integer }
+        method: { type: string, enum: [cash, upi, bank_transfer, card], nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    PaymentInput:
+      type: object
+      required: [tenantId, amount, dueDate, month, year]
+      properties:
+        tenantId: { type: integer }
+        amount: { type: number }
+        dueDate: { type: string, format: date }
+        month: { type: integer, minimum: 1, maximum: 12 }
+        year: { type: integer }
+        notes: { type: string, nullable: true }
+
+    PaymentWithTenant:
+      allOf:
+        - $ref: "#/components/schemas/Payment"
+        - type: object
+          required: [tenantName]
+          properties:
+            tenantName: { type: string }
+            roomNumber: { type: string, nullable: true }
+            propertyName: { type: string, nullable: true }
+
+    Complaint:
+      type: object
+      required: [id, tenantId, category, title, description, priority, status, createdAt]
+      properties:
+        id: { type: integer }
+        tenantId: { type: integer }
+        category: { type: string, enum: [plumbing, electricity, cleaning, internet, furniture, security, other] }
+        title: { type: string }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high] }
+        status: { type: string, enum: [open, in_progress, resolved] }
+        resolutionNote: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+
+    ComplaintInput:
+      type: object
+      required: [tenantId, category, title, description, priority]
+      properties:
+        tenantId: { type: integer }
+        category: { type: string, enum: [plumbing, electricity, cleaning, internet, furniture, security, other] }
+        title: { type: string }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high] }
+
+    ComplaintWithTenant:
+      allOf:
+        - $ref: "#/components/schemas/Complaint"
+        - type: object
+          required: [tenantName]
+          properties:
+            tenantName: { type: string }
+            roomNumber: { type: string, nullable: true }
+            propertyName: { type: string, nullable: true }
