@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, paymentsTable, tenantsTable, bedsTable, roomsTable, propertiesTable } from "@workspace/db";
+import { db, paymentsTable, tenantsTable, bedsTable, roomsTable, propertiesTable, bookingRequestsTable } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import {
   CreatePaymentBody,
@@ -8,6 +8,15 @@ import {
   MarkPaymentPaidParams,
   GenerateMonthlyRentBody,
 } from "@workspace/api-zod";
+import Razorpay from "razorpay";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || "",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+});
 
 const router: IRouter = Router();
 
@@ -121,6 +130,8 @@ router.post("/payments/generate-monthly", async (req, res) => {
   res.json({ generated: toCreate.length });
 });
 
+
 export default router;
 // suppress unused
 void sql;
+

@@ -4,6 +4,8 @@ import {
   useListProperties,
   useListTenants,
   useCreateRoom,
+  useUpdateRoom,
+  useDeleteRoom,
   useAssignBed,
   useUnassignBed,
 } from "@workspace/api-client-react";
@@ -28,9 +30,21 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Bed, Plus, UserPlus, UserMinus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Bed, Plus, UserPlus, UserMinus, Pencil, Trash2 } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export function RoomsPage() {
   const { data: properties } = useListProperties();
@@ -54,7 +68,7 @@ export function RoomsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold">Rooms & beds</h2>
+          <h2 className="text-xl font-semibold">Rooms &amp; beds</h2>
           <p className="text-sm text-muted-foreground">Manage room inventory and bed assignments</p>
         </div>
         <div className="flex items-center gap-3">
@@ -93,6 +107,18 @@ export function RoomsPage() {
 }
 
 function RoomCard({ room }: { room: RoomWithBeds }) {
+  const qc = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const deleteRoom = useDeleteRoom({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries();
+        toast.success(`Room ${room.roomNumber} deleted`);
+      },
+      onError: () => toast.error("Failed to delete room"),
+    },
+  });
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -103,9 +129,52 @@ function RoomCard({ room }: { room: RoomWithBeds }) {
               Floor {room.floor} · {room.roomType} · {formatINR(room.monthlyRent)}/mo
             </div>
           </div>
-          <Badge variant={room.occupiedCount === room.capacity ? "default" : "outline"}>
-            {room.occupiedCount}/{room.capacity}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge variant={room.occupiedCount === room.capacity ? "default" : "outline"}>
+              {room.occupiedCount}/{room.capacity}
+            </Badge>
+
+            {/* Edit Button */}
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+              <DialogTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit room">
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              </DialogTrigger>
+              <EditRoomDialog room={room} onClose={() => setEditOpen(false)} />
+            </Dialog>
+
+            {/* Delete Button */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" title="Delete room">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Room {room.roomNumber}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete room <strong>{room.roomNumber}</strong> and all its beds.
+                    {room.occupiedCount > 0 && (
+                      <span className="block mt-1 text-destructive font-medium">
+                        Warning: {room.occupiedCount} bed(s) are currently occupied!
+                      </span>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => deleteRoom.mutate({ id: room.id })}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
         {room.amenities && (
           <div className="text-xs text-muted-foreground pt-1">{room.amenities}</div>
@@ -219,10 +288,116 @@ function BedDialog({ bed, open, onOpenChange }: { bed: BedT; open: boolean; onOp
   );
 }
 
+function EditRoomDialog({ room, onClose }: { room: RoomWithBeds; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: properties } = useListProperties();
+  const update = useUpdateRoom({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries();
+        onClose();
+        toast.success("Room updated successfully");
+      },
+      onError: (err: any) => {
+        const msg = (err?.data as any)?.error ?? err?.message ?? "Failed to update room";
+        toast.error(msg);
+      },
+    },
+  });
+
+  const [form, setForm] = useState({
+    propertyId: room.propertyId,
+    roomNumber: room.roomNumber,
+    floor: room.floor,
+    capacity: room.capacity,
+    monthlyRent: room.monthlyRent,
+    roomType: room.roomType as "single" | "double" | "triple" | "quad" | "dormitory",
+    amenities: room.amenities ?? "",
+  });
+
+  return (
+    <DialogContent className="sm:max-w-lg">
+      <DialogHeader><DialogTitle>Edit Room {room.roomNumber}</DialogTitle></DialogHeader>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          update.mutate({ id: room.id, data: form });
+        }}
+      >
+        <div className="grid gap-2">
+          <Label>Property</Label>
+          <Select value={String(form.propertyId)} onValueChange={(v) => setForm({ ...form, propertyId: Number(v) })}>
+            <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+            <SelectContent>
+              {(properties ?? []).map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-2">
+            <Label>Room number</Label>
+            <Input required value={form.roomNumber} onChange={(e) => setForm({ ...form, roomNumber: e.target.value })} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Floor</Label>
+            <Input type="number" min={1} value={form.floor} onChange={(e) => setForm({ ...form, floor: Number(e.target.value) })} />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="grid gap-2">
+            <Label>Type</Label>
+            <Select value={form.roomType} onValueChange={(v: any) => setForm({ ...form, roomType: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["single","double","triple","quad","dormitory"].map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Capacity</Label>
+            <Input type="number" min={1} max={12} value={form.capacity} onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Rent (₹)</Label>
+            <Input type="number" min={0} value={form.monthlyRent} onChange={(e) => setForm({ ...form, monthlyRent: Number(e.target.value) })} />
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Label>Amenities</Label>
+          <Input placeholder="AC, Wi-Fi, Attached bath" value={form.amenities} onChange={(e) => setForm({ ...form, amenities: e.target.value })} />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={!form.propertyId || update.isPending}>
+            {update.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+}
+
 function NewRoomDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { data: properties } = useListProperties();
-  const create = useCreateRoom({ mutation: { onSuccess: () => { qc.invalidateQueries(); onClose(); } } });
+  const create = useCreateRoom({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries();
+        onClose();
+        toast.success("Room created successfully");
+      },
+      onError: (err: any) => {
+        const msg = (err?.data as any)?.error ?? err?.message ?? "Failed to create room";
+        toast.error(msg);
+      },
+    },
+  });
   const [form, setForm] = useState({
     propertyId: 0,
     roomNumber: "",

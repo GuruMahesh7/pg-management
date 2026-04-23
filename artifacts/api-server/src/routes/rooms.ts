@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, roomsTable, bedsTable, propertiesTable, tenantsTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import {
   CreateRoomBody,
   UpdateRoomBody,
@@ -54,6 +54,18 @@ router.get("/rooms", async (req, res) => {
 
 router.post("/rooms", async (req, res) => {
   const body = CreateRoomBody.parse(req.body);
+
+  // Prevent duplicate room numbers within the same property
+  const [existing] = await db
+    .select()
+    .from(roomsTable)
+    .where(and(eq(roomsTable.propertyId, body.propertyId), eq(roomsTable.roomNumber, body.roomNumber)))
+    .limit(1);
+  if (existing) {
+    res.status(409).json({ error: `Room "${body.roomNumber}" already exists in this property.` });
+    return;
+  }
+
   const [room] = await db
     .insert(roomsTable)
     .values({ ...body, monthlyRent: String(body.monthlyRent) })
@@ -71,6 +83,20 @@ router.post("/rooms", async (req, res) => {
 router.patch("/rooms/:id", async (req, res) => {
   const { id } = UpdateRoomParams.parse(req.params);
   const body = UpdateRoomBody.parse(req.body);
+
+  // Check duplicate room number for this property (excluding self)
+  if (body.roomNumber && body.propertyId) {
+    const [dup] = await db
+      .select()
+      .from(roomsTable)
+      .where(and(eq(roomsTable.propertyId, body.propertyId), eq(roomsTable.roomNumber, body.roomNumber)))
+      .limit(1);
+    if (dup && dup.id !== id) {
+      res.status(409).json({ error: `Room "${body.roomNumber}" already exists in this property.` });
+      return;
+    }
+  }
+
   const [row] = await db
     .update(roomsTable)
     .set({ ...body, monthlyRent: String(body.monthlyRent) })
@@ -80,6 +106,28 @@ router.patch("/rooms/:id", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
+
+  // If capacity changed, sync beds (add or remove unoccupied beds)
+  if (body.capacity !== undefined) {
+    const currentBeds = await db.select().from(bedsTable).where(eq(bedsTable.roomId, id)).orderBy(asc(bedsTable.bedLabel));
+    const diff = body.capacity - currentBeds.length;
+    if (diff > 0) {
+      // Add missing beds
+      const newBeds = Array.from({ length: diff }, (_, i) => ({
+        roomId: id,
+        bedLabel: `${row.roomNumber}-${String.fromCharCode(65 + currentBeds.length + i)}`,
+        isOccupied: false,
+      }));
+      await db.insert(bedsTable).values(newBeds);
+    } else if (diff < 0) {
+      // Remove excess vacant beds (newest first, don't remove occupied)
+      const vacantBeds = currentBeds.filter((b) => !b.isOccupied).reverse().slice(0, Math.abs(diff));
+      for (const b of vacantBeds) {
+        await db.delete(bedsTable).where(eq(bedsTable.id, b.id));
+      }
+    }
+  }
+
   res.json({ ...row, monthlyRent: Number(row.monthlyRent) });
 });
 

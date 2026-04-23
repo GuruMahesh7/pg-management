@@ -5,6 +5,7 @@ export const tenantsTable = pgTable("tenants", {
   fullName: text("full_name").notNull(),
   email: text("email").notNull(),
   phone: text("phone").notNull(),
+  passwordHash: text("password_hash"),
   gender: text("gender"),
   dateOfBirth: date("date_of_birth"),
   occupation: text("occupation"),

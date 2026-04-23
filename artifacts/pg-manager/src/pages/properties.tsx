@@ -2,19 +2,36 @@ import { useState } from "react";
 import {
   useListProperties,
   useCreateProperty,
+  useCreateRoom,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Building2, MapPin, Phone, Plus, Bed } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function PropertiesPage() {
   const { data: properties, isLoading } = useListProperties();
   const [open, setOpen] = useState(false);
+  // Track which propertyId to pre-fill when opening Add Room from a card
+  const [addRoomPropertyId, setAddRoomPropertyId] = useState<number | null>(null);
 
   return (
     <div className="space-y-6">
@@ -62,6 +79,15 @@ export function PropertiesPage() {
                 <Stat label="Beds" value={p.totalBeds} icon={Bed} />
                 <Stat label="Occupied" value={p.occupiedBeds} highlight />
               </div>
+              {/* Add Room button per property */}
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full mt-1"
+                onClick={() => setAddRoomPropertyId(p.id)}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add room
+              </Button>
             </CardContent>
           </Card>
         ))}
@@ -73,6 +99,16 @@ export function PropertiesPage() {
             No properties yet. Add your first one to get started.
           </CardContent>
         </Card>
+      )}
+
+      {/* Add Room dialog, pre-filled with selected property */}
+      {addRoomPropertyId !== null && (
+        <Dialog open={true} onOpenChange={(v) => { if (!v) setAddRoomPropertyId(null); }}>
+          <NewRoomDialog
+            preselectedPropertyId={addRoomPropertyId}
+            onClose={() => setAddRoomPropertyId(null)}
+          />
+        </Dialog>
       )}
     </div>
   );
@@ -169,6 +205,142 @@ function NewPropertyDialog({ onClose }: { onClose: () => void }) {
           </Button>
           <Button type="submit" disabled={create.isPending}>
             {create.isPending ? "Saving…" : "Create"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+}
+
+function NewRoomDialog({
+  onClose,
+  preselectedPropertyId,
+}: {
+  onClose: () => void;
+  preselectedPropertyId?: number;
+}) {
+  const qc = useQueryClient();
+  const { data: properties } = useListProperties();
+  const create = useCreateRoom({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries();
+        onClose();
+      },
+    },
+  });
+  const [form, setForm] = useState({
+    propertyId: preselectedPropertyId ?? 0,
+    roomNumber: "",
+    floor: 1,
+    capacity: 2,
+    monthlyRent: 8000,
+    roomType: "double" as const,
+    amenities: "",
+  });
+
+  return (
+    <DialogContent className="sm:max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Add room</DialogTitle>
+      </DialogHeader>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          create.mutate({ data: form });
+        }}
+      >
+        <div className="grid gap-2">
+          <Label>Property</Label>
+          <Select
+            value={String(form.propertyId || "")}
+            onValueChange={(v) => setForm({ ...form, propertyId: Number(v) })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select property" />
+            </SelectTrigger>
+            <SelectContent>
+              {(properties ?? []).map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-2">
+            <Label>Room number</Label>
+            <Input
+              required
+              value={form.roomNumber}
+              onChange={(e) => setForm({ ...form, roomNumber: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Floor</Label>
+            <Input
+              type="number"
+              min={1}
+              value={form.floor}
+              onChange={(e) => setForm({ ...form, floor: Number(e.target.value) })}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="grid gap-2">
+            <Label>Type</Label>
+            <Select
+              value={form.roomType}
+              onValueChange={(v: any) => setForm({ ...form, roomType: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["single", "double", "triple", "quad", "dormitory"].map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Capacity</Label>
+            <Input
+              type="number"
+              min={1}
+              max={12}
+              value={form.capacity}
+              onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Rent (₹)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.monthlyRent}
+              onChange={(e) => setForm({ ...form, monthlyRent: Number(e.target.value) })}
+            />
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Label>Amenities</Label>
+          <Input
+            placeholder="AC, Wi-Fi, Attached bath"
+            value={form.amenities}
+            onChange={(e) => setForm({ ...form, amenities: e.target.value })}
+          />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!form.propertyId || create.isPending}>
+            {create.isPending ? "Saving…" : "Create room"}
           </Button>
         </DialogFooter>
       </form>
