@@ -61,7 +61,7 @@ router.get("/payments", async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const result = rows.map((r) => {
     let status = r.status;
-    if (status === "pending" && r.dueDate < today) status = "overdue";
+    if (status === "pending" && r.dueDate && r.dueDate < today) status = "overdue";
     return { ...r, amount: Number(r.amount), status };
   });
   res.json(result);
@@ -86,7 +86,7 @@ router.post("/payments/:id/mark-paid", async (req, res) => {
   const { method } = MarkPaymentPaidBody.parse(req.body);
   const [row] = await db
     .update(paymentsTable)
-    .set({ status: "paid", method, paidDate: new Date().toISOString().slice(0, 10) })
+    .set({ status: "paid", method, paidDate: new Date() })
     .where(eq(paymentsTable.id, id))
     .returning();
   if (!row) {
@@ -134,4 +134,3 @@ router.post("/payments/generate-monthly", async (req, res) => {
 export default router;
 // suppress unused
 void sql;
-

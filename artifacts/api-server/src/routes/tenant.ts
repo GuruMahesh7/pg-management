@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, tenantsTable, bedsTable, roomsTable, propertiesTable, paymentsTable, complaintsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import jwt from "jsonwebtoken";
+import { z } from "zod";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecurejwtsecret_change_me_in_prod";
@@ -71,6 +72,23 @@ router.get("/tenant/dashboard", async (req, res) => {
     payments,
     complaints
   });
+});
+
+router.post("/tenant/complaints", async (req, res) => {
+  const tenantId = (req as any).tenantId;
+  const body = z.object({
+    category: z.enum(["plumbing", "electricity", "cleaning", "internet", "furniture", "security", "other"]),
+    title: z.string().min(1),
+    description: z.string().min(1),
+    priority: z.enum(["low", "medium", "high"]).default("medium"),
+  }).parse(req.body);
+
+  const [row] = await db
+    .insert(complaintsTable)
+    .values({ ...body, tenantId, status: "open" })
+    .returning();
+
+  res.status(201).json(row);
 });
 
 router.post("/tenant/logout", (req, res) => {

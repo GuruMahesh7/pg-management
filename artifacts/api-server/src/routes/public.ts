@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { db, propertiesTable, roomsTable, bedsTable, bookingRequestsTable, tenantsTable, paymentsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -15,6 +15,84 @@ const razorpay = new Razorpay({
 const router: IRouter = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecurejwtsecret_change_me_in_prod";
+
+function setTenantSessionCookie(res: Response, tenantId: number) {
+  const token = jwt.sign({ tenantId, role: "tenant" }, JWT_SECRET, { expiresIn: "7d" });
+
+  res.cookie("tenant_session", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+}
+
+async function finalizeSuccessfulBooking(
+  tx: any,
+  {
+    razorpayOrderId,
+    razorpayPaymentId,
+    method,
+  }: { razorpayOrderId: string; razorpayPaymentId: string; method?: string | null },
+) {
+  const [existing] = await tx
+    .select()
+    .from(paymentsTable)
+    .where(eq(paymentsTable.razorpayPaymentId, razorpayPaymentId))
+    .limit(1);
+
+  if (existing?.tenantId) {
+    const [tenant] = await tx.select().from(tenantsTable).where(eq(tenantsTable.id, existing.tenantId)).limit(1);
+    if (tenant) return { tenant, password: tenant.phone };
+  }
+
+  const [payment] = await tx
+    .select()
+    .from(paymentsTable)
+    .where(and(eq(paymentsTable.razorpayOrderId, razorpayOrderId), eq(paymentsTable.status, "pending")))
+    .limit(1);
+  if (!payment || !payment.bookingRequestId) throw new Error("Payment record not found");
+
+  const [booking] = await tx
+    .select()
+    .from(bookingRequestsTable)
+    .where(eq(bookingRequestsTable.id, payment.bookingRequestId))
+    .limit(1);
+  if (!booking) throw new Error("Booking not found");
+  if (booking.status !== "pending" && booking.status !== "confirmed") throw new Error("Booking is not payable");
+
+  const password = booking.phone.trim();
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  await tx
+    .update(paymentsTable)
+    .set({
+      status: "paid",
+      razorpayPaymentId,
+      paidDate: new Date(),
+      method: method ?? "razorpay",
+    })
+    .where(eq(paymentsTable.id, payment.id));
+  await tx.update(bookingRequestsTable).set({ status: "confirmed" }).where(eq(bookingRequestsTable.id, booking.id));
+
+  const [tenant] = await tx
+    .insert(tenantsTable)
+    .values({
+      fullName: booking.applicantName,
+      email: booking.email,
+      phone: booking.phone,
+      idProofNumber: booking.idNumber,
+      passwordHash,
+      joinedAt: new Date().toISOString().slice(0, 10),
+      status: "active",
+    })
+    .returning();
+
+  await tx.update(bedsTable).set({ isOccupied: true, tenantId: tenant.id }).where(eq(bedsTable.id, booking.bedId));
+  await tx.update(paymentsTable).set({ tenantId: tenant.id }).where(eq(paymentsTable.id, payment.id));
+
+  return { tenant, password };
+}
 
 router.get("/public/properties", async (req, res) => {
   const properties = await db.select().from(propertiesTable);
@@ -80,31 +158,28 @@ router.post("/public/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+      res.status(400).json({ error: "Email and password are required" });
+      return;
     }
 
     const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.email, email));
     if (!tenant) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
     }
 
     if (!tenant.passwordHash) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
     }
 
     const isValid = await bcrypt.compare(password, tenant.passwordHash);
     if (!isValid) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
     }
 
-    const token = jwt.sign({ tenantId: tenant.id, role: "tenant" }, JWT_SECRET, { expiresIn: "7d" });
-
-    res.cookie("tenant_session", token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+    setTenantSessionCookie(res, tenant.id);
 
     console.log("Login Success - Cookie Set for tenant:", tenant.id);
 
@@ -158,14 +233,62 @@ router.post("/public/payments/create-order", async (req, res) => {
       amount: String(amount),
       status: "pending",
       razorpayOrderId: order.id,
+      dueDate: new Date().toISOString().slice(0, 10),
       month: new Date().getMonth() + 1,
       year: new Date().getFullYear(),
+      notes: "Security deposit",
     });
 
     res.json({ order_id: order.id, amount: order.amount, currency: order.currency });
   } catch (error) {
     console.error("Razorpay Order Error:", error);
     res.status(500).json({ error: "Failed to create order" });
+  }
+});
+
+// Razorpay Checkout Verification (Public)
+router.post("/public/payments/verify", async (req, res) => {
+  try {
+    const {
+      razorpay_order_id: razorpayOrderId,
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_signature: razorpaySignature,
+    } = z
+      .object({
+        razorpay_order_id: z.string().min(1),
+        razorpay_payment_id: z.string().min(1),
+        razorpay_signature: z.string().min(1),
+      })
+      .parse(req.body);
+
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest("hex");
+
+    if (expectedSignature !== razorpaySignature) {
+      res.status(400).json({ error: "Invalid payment signature" });
+      return;
+    }
+
+    const result = await db.transaction((tx) =>
+      finalizeSuccessfulBooking(tx, {
+        razorpayOrderId,
+        razorpayPaymentId,
+        method: "razorpay",
+      }),
+    );
+
+    setTenantSessionCookie(res, result.tenant.id);
+    res.json({
+      success: true,
+      tenantId: result.tenant.id,
+      email: result.tenant.email,
+      password: result.password,
+    });
+  } catch (error) {
+    console.error("Razorpay Verification Error:", error);
+    res.status(500).json({ error: "Failed to verify payment" });
   }
 });
 
@@ -189,26 +312,12 @@ router.post("/public/payments/webhook", async (req, res) => {
 
     try {
       await db.transaction(async (tx) => {
-        const [existing] = await tx.select().from(paymentsTable).where(eq(paymentsTable.razorpayPaymentId, razorpayPaymentId)).limit(1);
-        if (existing) return;
-
-        const [payment] = await tx.select().from(paymentsTable).where(and(eq(paymentsTable.razorpayOrderId, razorpayOrderId), eq(paymentsTable.status, "pending"))).limit(1);
-        if (!payment || !payment.bookingRequestId) throw new Error("Payment record not found");
-
-        const [booking] = await tx.select().from(bookingRequestsTable).where(and(eq(bookingRequestsTable.id, payment.bookingRequestId), eq(bookingRequestsTable.status, "pending"))).limit(1);
-        if (!booking) throw new Error("Booking not found");
-
-        await tx.update(paymentsTable).set({ status: "success", razorpayPaymentId, paidDate: new Date(), method: req.body.payload.payment.entity.method }).where(eq(paymentsTable.id, payment.id));
-        await tx.update(bookingRequestsTable).set({ status: "confirmed" }).where(eq(bookingRequestsTable.id, booking.id));
-
-        const password = Math.random().toString(36).slice(-8);
-        const passwordHash = await bcrypt.hash(password, 10);
-        const [tenant] = await tx.insert(tenantsTable).values({ fullName: booking.applicantName, email: booking.email, phone: booking.phone, idProofNumber: booking.idNumber, passwordHash, joinedAt: new Date().toISOString().slice(0, 10), status: "active" }).returning();
-
-        await tx.update(bedsTable).set({ isOccupied: true, tenantId: tenant.id }).where(eq(bedsTable.id, booking.bedId));
-        await tx.update(paymentsTable).set({ tenantId: tenant.id }).where(eq(paymentsTable.id, payment.id));
-
-        console.log(`Tenant created: ${tenant.id}. Temp Password: ${password}`);
+        const result = await finalizeSuccessfulBooking(tx, {
+          razorpayOrderId,
+          razorpayPaymentId,
+          method: req.body.payload.payment.entity.method,
+        });
+        console.log(`Tenant booking finalized: ${result.tenant.id}`);
       });
       res.json({ status: "ok" });
     } catch (e) {
