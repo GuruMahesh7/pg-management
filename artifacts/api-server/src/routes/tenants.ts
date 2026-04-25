@@ -8,6 +8,7 @@ import {
   GetTenantParams,
   DeleteTenantParams,
 } from "@workspace/api-zod";
+import { requireAdminRole } from "../auth/admin-auth";
 
 const router: IRouter = Router();
 
@@ -123,7 +124,7 @@ router.patch("/tenants/:id", async (req, res) => {
   res.json(row);
 });
 
-router.delete("/tenants/:id", async (req, res) => {
+router.delete("/tenants/:id", requireAdminRole("super_admin"), async (req, res) => {
   const { id } = DeleteTenantParams.parse(req.params);
   await db.delete(tenantsTable).where(eq(tenantsTable.id, id));
   res.status(204).end();

@@ -17,6 +17,8 @@ import {
 import { Calendar, CheckCircle2, RefreshCw } from "lucide-react";
 import { formatINR, formatDate, monthName } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
+import { Mail } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const STATUS_TONE: Record<string, string> = {
   paid: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30",
@@ -38,6 +40,8 @@ export function PaymentsPage() {
     { paid: 0, pending: 0, overdue: 0 } as Record<string, number>,
   );
 
+  const { toast } = useToast();
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -55,6 +59,38 @@ export function PaymentsPage() {
               <SelectItem value="overdue">Overdue</SelectItem>
             </SelectContent>
           </Select>
+          <Button 
+            variant="outline" 
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/payments/send-reminders', { 
+                  method: 'POST',
+                  credentials: 'include'
+                });
+                const json = await res.json();
+                if (res.ok) {
+                  toast({
+                    title: "Success",
+                    description: `Sent ${json.data.count} reminders.`,
+                  });
+                } else {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Failed to send reminders.",
+                  });
+                }
+              } catch (e) {
+                toast({
+                  variant: "destructive",
+                  title: "Error",
+                  description: "An error occurred.",
+                });
+              }
+            }}
+          >
+            <Mail className="w-4 h-4 mr-1" /> Send Reminders
+          </Button>
           <GenerateDialog />
         </div>
       </div>

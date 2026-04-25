@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import { db, tenantsTable, bedsTable, roomsTable, propertiesTable, paymentsTable, complaintsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import jwt from "jsonwebtoken";
@@ -7,11 +7,9 @@ import { z } from "zod";
 const router: IRouter = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecurejwtsecret_change_me_in_prod";
 
-// Middleware to authenticate tenant
-router.use((req, res, next) => {
+const requireTenantAuth: RequestHandler = (req, res, next) => {
   const token = req.cookies?.tenant_session;
-  console.log("Auth Middleware - Cookie:", token ? "Exists" : "Missing");
-  
+
   if (!token) {
     res.status(401).json({ error: "Unauthorized: Missing session cookie" });
     return;
@@ -19,21 +17,18 @@ router.use((req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
-    console.log("Auth Middleware - JWT Decoded:", decoded.tenantId, decoded.role);
     if (decoded.role !== "tenant" || !decoded.tenantId) {
       res.status(403).json({ error: "Forbidden: Not a tenant" });
       return;
     }
-    // inject tenantId
     (req as any).tenantId = Number(decoded.tenantId);
     next();
-  } catch (err) {
-    console.error("Auth Middleware - JWT Error:", err);
+  } catch {
     res.status(401).json({ error: "Unauthorized: Invalid or expired session" });
   }
-});
+};
 
-router.get("/tenant/dashboard", async (req, res) => {
+router.get("/tenant/dashboard", requireTenantAuth, async (req, res) => {
   const tenantId = (req as any).tenantId;
 
   const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId));
@@ -74,7 +69,7 @@ router.get("/tenant/dashboard", async (req, res) => {
   });
 });
 
-router.post("/tenant/complaints", async (req, res) => {
+router.post("/tenant/complaints", requireTenantAuth, async (req, res) => {
   const tenantId = (req as any).tenantId;
   const body = z.object({
     category: z.enum(["plumbing", "electricity", "cleaning", "internet", "furniture", "security", "other"]),

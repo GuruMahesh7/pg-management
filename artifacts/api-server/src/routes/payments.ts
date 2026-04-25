@@ -131,6 +131,17 @@ router.post("/payments/generate-monthly", async (req, res) => {
 });
 
 
+import { sendRentReminders } from "../lib/cron";
+
+router.post("/payments/send-reminders", async (req, res) => {
+  const result = await sendRentReminders();
+  if (result.success) {
+    res.json({ message: "Reminders sent successfully", data: result });
+  } else {
+    res.status(500).json({ error: "Failed to send reminders", details: result.error });
+  }
+});
+
 export default router;
 // suppress unused
 void sql;

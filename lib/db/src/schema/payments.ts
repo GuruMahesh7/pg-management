@@ -16,6 +16,7 @@ export const paymentsTable = pgTable("payments", {
   year: integer("year"),
   method: text("method"),
   notes: text("notes"),
+  lastReminderSentAt: timestamp("last_reminder_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniqRazorpayPayment: uniqueIndex("payments_unique_razorpay_payment").on(t.razorpayPaymentId),

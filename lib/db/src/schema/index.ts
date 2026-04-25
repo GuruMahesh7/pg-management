@@ -5,3 +5,5 @@ export * from "./beds";
 export * from "./payments";
 export * from "./complaints";
 export * from "./booking_requests";
+export * from "./admins";
+export * from "./otp_verifications";

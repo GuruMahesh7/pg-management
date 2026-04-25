@@ -32,6 +32,11 @@ export function PropertiesPage() {
   const [open, setOpen] = useState(false);
   // Track which propertyId to pre-fill when opening Add Room from a card
   const [addRoomPropertyId, setAddRoomPropertyId] = useState<number | null>(null);
+  type PropertyCard = (NonNullable<typeof properties>[number] & {
+    totalRooms?: number;
+    totalBeds?: number;
+    occupiedBeds?: number;
+  });
 
   return (
     <div className="space-y-6">
@@ -53,7 +58,9 @@ export function PropertiesPage() {
       {isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(properties ?? []).map((p) => (
+        {(properties ?? []).map((property) => {
+          const p = property as PropertyCard;
+          return (
           <Card key={p.id} className="overflow-hidden">
             <div className="h-2 bg-primary" />
             <CardContent className="p-5 space-y-3">
@@ -75,9 +82,9 @@ export function PropertiesPage() {
                 {p.contactPhone}
               </div>
               <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
-                <Stat label="Rooms" value={p.totalRooms} />
-                <Stat label="Beds" value={p.totalBeds} icon={Bed} />
-                <Stat label="Occupied" value={p.occupiedBeds} highlight />
+                <Stat label="Rooms" value={p.totalRooms ?? 0} />
+                <Stat label="Beds" value={p.totalBeds ?? 0} icon={Bed} />
+                <Stat label="Occupied" value={p.occupiedBeds ?? 0} highlight />
               </div>
               {/* Add Room button per property */}
               <Button
@@ -90,7 +97,8 @@ export function PropertiesPage() {
               </Button>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {properties && properties.length === 0 && !isLoading && (

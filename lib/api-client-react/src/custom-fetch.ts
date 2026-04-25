@@ -360,9 +360,28 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await fetch(input, {
+    credentials: init.credentials ?? "include",
+    ...init,
+    method,
+    headers,
+  });
 
   if (!response.ok) {
+    if (
+      typeof window !== "undefined" &&
+      (response.status === 401 || response.status === 403)
+    ) {
+      window.dispatchEvent(
+        new CustomEvent("workspace-api-auth-error", {
+          detail: {
+            status: response.status,
+            url: requestInfo.url,
+            method: requestInfo.method,
+          },
+        }),
+      );
+    }
     const errorData = await parseErrorBody(response, method);
     throw new ApiError(response, errorData, requestInfo);
   }
