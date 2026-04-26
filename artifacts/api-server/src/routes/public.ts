@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { logger } from "../lib/logger";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || "",
@@ -126,10 +127,10 @@ router.post("/public/bookings/request", async (req, res) => {
 
     // 1. Ensure bed is available
     const [bed] = await db.select().from(bedsTable).where(eq(bedsTable.id, parsed.bedId));
-    console.log("Booking Request for Bed:", parsed.bedId, "Found Bed:", bed);
+    logger.info({ bedId: parsed.bedId, bed }, "Booking Request for Bed");
 
     if (!bed || bed.isOccupied) {
-      console.log("Bed unavailable or occupied. Bed:", bed);
+      logger.warn({ bed }, "Bed unavailable or occupied");
       throw new Error("BED_UNAVAILABLE");
     }
 
@@ -147,7 +148,7 @@ router.post("/public/bookings/request", async (req, res) => {
     } else if (error instanceof z.ZodError) {
       res.status(400).json({ error: "Validation failed", details: error.errors });
     } else {
-      console.error(error);
+      logger.error({ err: error }, "Failed to create booking request");
       res.status(500).json({ error: "Failed to create booking request" });
     }
   }
@@ -181,11 +182,11 @@ router.post("/public/login", async (req, res) => {
 
     setTenantSessionCookie(res, tenant.id);
 
-    console.log("Login Success - Cookie Set for tenant:", tenant.id);
+    logger.info({ tenantId: tenant.id }, "Login Success - Cookie Set for tenant");
 
     res.json({ success: true, tenantId: tenant.id });
   } catch (error) {
-    console.error("Login error:", error);
+    logger.error({ err: error }, "Login error");
     res.status(500).json({ error: "Login failed" });
     return;
   }
@@ -241,7 +242,7 @@ router.post("/public/payments/create-order", async (req, res) => {
 
     res.json({ order_id: order.id, amount: order.amount, currency: order.currency });
   } catch (error) {
-    console.error("Razorpay Order Error:", error);
+    logger.error({ err: error }, "Razorpay Order Error");
     res.status(500).json({ error: "Failed to create order" });
   }
 });
@@ -287,7 +288,7 @@ router.post("/public/payments/verify", async (req, res) => {
       password: result.password,
     });
   } catch (error) {
-    console.error("Razorpay Verification Error:", error);
+    logger.error({ err: error }, "Razorpay Verification Error");
     res.status(500).json({ error: "Failed to verify payment" });
   }
 });
@@ -317,11 +318,11 @@ router.post("/public/payments/webhook", async (req, res) => {
           razorpayPaymentId,
           method: req.body.payload.payment.entity.method,
         });
-        console.log(`Tenant booking finalized: ${result.tenant.id}`);
+        logger.info({ tenantId: result.tenant.id }, "Tenant booking finalized");
       });
       res.json({ status: "ok" });
     } catch (e) {
-      console.error(e);
+      logger.error({ err: e }, "Webhook booking finalization error");
       res.status(500).end();
     }
   } else {

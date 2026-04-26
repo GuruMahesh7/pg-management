@@ -79,9 +79,9 @@ async function main() {
       await db.insert(paymentsTable).values({
         tenantId: t.id,
         amount: String(room.monthlyRent),
-        status: isPaid ? "paid" : "pending",
+        status: isPaid ? "success" : "pending",
         dueDate: due,
-        paidDate: isPaid ? due : null,
+        paidDate: isPaid ? new Date(due) : null,
         method: isPaid ? "upi" : null,
         month: mm.m,
         year: mm.y,

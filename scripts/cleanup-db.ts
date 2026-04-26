@@ -2,14 +2,19 @@ import { db, propertiesTable, roomsTable, bedsTable, tenantsTable, paymentsTable
 import { sql } from "drizzle-orm";
 
 async function cleanup() {
-  console.log("Cleaning up database...");
+  console.log("Cleaning up test database (tenants, payments, bookings)...");
   
   try {
-    // Truncate tables with CASCADE to handle foreign key constraints
-    // Using raw SQL for truncate as Drizzle doesn't have a direct truncate method with cascade easily accessible across all drivers
-    await db.execute(sql`TRUNCATE TABLE ${propertiesTable}, ${tenantsTable}, ${bookingRequestsTable} CASCADE`);
+    // Delete transactional data
+    await db.delete(paymentsTable);
+    await db.delete(complaintsTable);
+    await db.delete(bookingRequestsTable);
+    await db.delete(tenantsTable);
     
-    console.log("Database cleaned successfully!");
+    // Reset all beds to unoccupied
+    await db.execute(sql`UPDATE ${bedsTable} SET is_occupied = false, tenant_id = NULL`);
+    
+    console.log("Database cleaned successfully! Properties and rooms are intact.");
   } catch (error) {
     console.error("Error during cleanup:", error);
   } finally {

@@ -34,6 +34,10 @@ app.use(cors({
     if (/^http:\/\/localhost:\d+$/.test(origin)) {
       return callback(null, true);
     }
+    // allow configured frontend base URL
+    if (process.env.FRONTEND_BASE_URL && origin.startsWith(process.env.FRONTEND_BASE_URL)) {
+      return callback(null, true);
+    }
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true

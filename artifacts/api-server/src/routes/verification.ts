@@ -86,7 +86,7 @@ verificationRouter.post("/verification/send-email-otp", async (req, res) => {
     } else {
       logger.warn(`SMTP credentials missing or using placeholders. Would have sent OTP ${otp} to ${email}`);
       // For testing purposes, we return the OTP in the console when SMTP is not configured
-      console.log(`[TEST MODE] OTP for ${email} is: ${otp}`);
+      logger.info(`[TEST MODE] OTP for ${email} is: ${otp}`);
     }
 
     res.json({ message: "OTP sent successfully" });

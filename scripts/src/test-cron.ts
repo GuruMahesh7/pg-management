@@ -29,6 +29,7 @@ async function main() {
 
   const filtered = pendingPayments.filter(p => 
     p.status === "pending" && 
+    p.dueDate !== null &&
     p.dueDate <= todayStr && 
     (p.lastReminderSentAt === null || p.lastReminderSentAt < yesterday)
   );
