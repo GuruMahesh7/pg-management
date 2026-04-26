@@ -32,6 +32,7 @@ app.use(
 const allowedOrigins = [
   "https://home-haven-connect.vercel.app",
   "https://diziny-deluxe.vercel.app",
+  "https://pg-management-pg-manager.vercel.app",
 ];
 
 app.use(cors({

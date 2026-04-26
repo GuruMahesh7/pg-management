@@ -40,7 +40,7 @@ export function getAdminCookieOptions() {
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax" as const,
+    sameSite: isProduction ? ("none" as const) : ("lax" as const),
     maxAge: ADMIN_TOKEN_TTL_MS,
     path: "/",
   };
