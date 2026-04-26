@@ -63,7 +63,8 @@ export function PaymentsPage() {
             variant="outline" 
             onClick={async () => {
               try {
-                const res = await fetch('/api/payments/send-reminders', { 
+                const API_URL = import.meta.env.NEXT_PUBLIC_API_URL || "";
+                const res = await fetch(`${API_URL}/api/payments/send-reminders`, { 
                   method: 'POST',
                   credentials: 'include'
                 });
