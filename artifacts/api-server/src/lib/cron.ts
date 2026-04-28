@@ -2,19 +2,12 @@ import cron from "node-cron";
 import { db } from "@workspace/db";
 import { paymentsTable, tenantsTable, bedsTable, roomsTable, propertiesTable } from "@workspace/db";
 import { eq, and, lte, isNull, or, lt } from "drizzle-orm";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { logger } from "./logger";
 
-// Nodemailer config
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// Resend config
+const resend = new Resend(process.env.RESEND_API_KEY);
+const SENDER_EMAIL = (process.env.SENDER_EMAIL || "onboarding@resend.dev").split('#')[0].trim();
 
 export const sendRentReminders = async () => {
   logger.info("Starting automated rent reminder job...");
@@ -96,19 +89,24 @@ export const sendRentReminders = async () => {
         `;
 
         // Send email
-        if (
-          process.env.SMTP_USER &&
-          process.env.SMTP_PASS &&
-          process.env.SMTP_USER !== "your-email@gmail.com"
-        ) {
-          await transporter.sendMail({
-            from: `"Hostel Manager" <${process.env.SMTP_USER}>`,
+        if (process.env.RESEND_API_KEY) {
+          const fromEmail = `"Hostel Manager" <${SENDER_EMAIL}>`;
+          const { data, error } = await resend.emails.send({
+            from: fromEmail,
             to: record.tenantEmail,
             subject: "Action Required: Rent Payment Reminder",
             html: htmlContent,
           });
+
+          if (error) {
+            logger.error({ error }, "Resend error in cron job");
+            // We don't throw here to allow other reminders to proceed if one fails
+            errorCount++;
+            continue;
+          }
+          logger.info({ data }, "Reminder email sent via Resend");
         } else {
-          logger.warn(`SMTP credentials missing or using placeholders. Would have sent reminder to ${record.tenantEmail}`);
+          logger.warn(`RESEND_API_KEY missing. Would have sent reminder to ${record.tenantEmail}`);
           console.log(`[TEST MODE] Reminder for ${record.tenantEmail}:\nAmount: ${record.amount}, Due: ${record.dueDate}`);
         }
 

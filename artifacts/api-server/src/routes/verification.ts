@@ -2,29 +2,22 @@ import { Router } from "express";
 import { db, otpVerifications } from "@workspace/db";
 import { eq, desc, and, gt } from "drizzle-orm";
 import { z } from "zod";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import crypto from "crypto";
 import { logger } from "../lib/logger";
 
 const verificationRouter = Router();
 
-// Nodemailer config
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT || "465"),
-  secure: process.env.SMTP_SECURE === "true" || (process.env.SMTP_PORT === "465" || !process.env.SMTP_PORT),
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  connectionTimeout: 20000, // 20 seconds
-  greetingTimeout: 20000,
-  socketTimeout: 20000,
-  family: 4, // Force IPv4 (bypasses IPv6 routing issues)
-  tls: { rejectUnauthorized: false },
-  debug: true,
-  logger: true,
-} as any);
+// Resend config
+const resend = new Resend(process.env.RESEND_API_KEY);
+const SENDER_EMAIL = (process.env.SENDER_EMAIL || "onboarding@resend.dev").split('#')[0].trim();
+
+if (process.env.RESEND_API_KEY) {
+  const maskedKey = process.env.RESEND_API_KEY.substring(0, 7) + "..." + process.env.RESEND_API_KEY.substring(process.env.RESEND_API_KEY.length - 4);
+  logger.info(`Resend initialized with API Key: ${maskedKey} and Sender: ${SENDER_EMAIL}`);
+} else {
+  logger.warn("RESEND_API_KEY is missing from environment variables!");
+}
 
 const sendOtpSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -72,13 +65,11 @@ verificationRouter.post("/verification/send-email-otp", async (req, res) => {
     });
 
     // Send email
-    if (
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASS &&
-      process.env.SMTP_USER !== "your-email@gmail.com"
-    ) {
-      await transporter.sendMail({
-        from: `"Hostel Manager" <${process.env.SMTP_USER}>`,
+    if (process.env.RESEND_API_KEY) {
+      const fromEmail = `"Hostel Manager" <${SENDER_EMAIL}>`;
+      logger.info({ fromEmail, to: email }, "Sending email via Resend");
+      const { data, error } = await resend.emails.send({
+        from: fromEmail,
         to: email,
         subject: "Your Verification Code",
         html: `
@@ -90,8 +81,15 @@ verificationRouter.post("/verification/send-email-otp", async (req, res) => {
           </div>
         `,
       });
+
+      if (error) {
+        logger.error({ error }, "Resend error");
+        res.status(400).json({ message: error.message || "Failed to send email via Resend" });
+        return;
+      }
+      logger.info({ data }, "Email sent via Resend");
     } else {
-      logger.warn(`SMTP credentials missing or using placeholders. Would have sent OTP ${otp} to ${email}`);
+      logger.warn(`RESEND_API_KEY missing. Would have sent OTP ${otp} to ${email}`);
       // For testing purposes, we return the OTP in the console when SMTP is not configured
       logger.info(`[TEST MODE] OTP for ${email} is: ${otp}`);
     }
@@ -142,7 +140,7 @@ verificationRouter.post("/verification/verify-email-otp", async (req, res) => {
       await db.update(otpVerifications)
         .set({ attempts: latestOtpRecord.attempts + 1 })
         .where(eq(otpVerifications.id, latestOtpRecord.id));
-      
+
       res.status(400).json({ message: "Invalid OTP" });
       return;
     }
