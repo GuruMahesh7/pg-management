@@ -17,10 +17,14 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-});
+  connectionTimeout: 20000, // 20 seconds
+  greetingTimeout: 20000,
+  socketTimeout: 20000,
+  family: 4, // Force IPv4 (bypasses IPv6 routing issues)
+  tls: { rejectUnauthorized: false },
+  debug: true,
+  logger: true,
+} as any);
 
 const sendOtpSchema = z.object({
   email: z.string().email("Invalid email address"),
