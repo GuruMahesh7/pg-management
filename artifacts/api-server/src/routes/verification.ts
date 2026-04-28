@@ -11,12 +11,15 @@ const verificationRouter = Router();
 // Nodemailer config
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true",
+  port: parseInt(process.env.SMTP_PORT || "465"),
+  secure: process.env.SMTP_SECURE === "true" || (process.env.SMTP_PORT === "465" || !process.env.SMTP_PORT),
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 });
 
 const sendOtpSchema = z.object({
