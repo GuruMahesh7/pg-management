@@ -40,16 +40,25 @@ export function PropertiesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">All properties</h2>
           <p className="text-sm text-muted-foreground">Manage hostel locations and capacity</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-1" /> Add property
-            </Button>
+            <>
+              <Button className="hidden md:flex">
+                <Plus className="w-4 h-4 mr-1" /> Add property
+              </Button>
+              <Button 
+                size="icon" 
+                className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
+                style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+              >
+                <Plus className="w-6 h-6" />
+              </Button>
+            </>
           </DialogTrigger>
           <NewPropertyDialog onClose={() => setOpen(false)} />
         </Dialog>

@@ -83,7 +83,16 @@ export function RoomsPage() {
           </Select>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="w-4 h-4 mr-1" /> Add room</Button>
+              <>
+                <Button className="hidden md:flex"><Plus className="w-4 h-4 mr-1" /> Add room</Button>
+                <Button 
+                  size="icon" 
+                  className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
+                  style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+                >
+                  <Plus className="w-6 h-6" />
+                </Button>
+              </>
             </DialogTrigger>
             <NewRoomDialog onClose={() => setOpen(false)} />
           </Dialog>
@@ -137,8 +146,8 @@ function RoomCard({ room }: { room: RoomWithBeds }) {
             {/* Edit Button */}
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
               <DialogTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit room">
-                  <Pencil className="w-3.5 h-3.5" />
+                <Button size="icon" variant="ghost" className="h-10 w-10 md:h-7 md:w-7" title="Edit room">
+                  <Pencil className="w-4 h-4 md:w-3.5 md:h-3.5" />
                 </Button>
               </DialogTrigger>
               <EditRoomDialog room={room} onClose={() => setEditOpen(false)} />
@@ -147,8 +156,8 @@ function RoomCard({ room }: { room: RoomWithBeds }) {
             {/* Delete Button */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" title="Delete room">
-                  <Trash2 className="w-3.5 h-3.5" />
+                <Button size="icon" variant="ghost" className="h-10 w-10 md:h-7 md:w-7 text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete room">
+                  <Trash2 className="w-4 h-4 md:w-3.5 md:h-3.5" />
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>

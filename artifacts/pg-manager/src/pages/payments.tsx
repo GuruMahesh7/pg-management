@@ -61,6 +61,7 @@ export function PaymentsPage() {
           </Select>
           <Button 
             variant="outline" 
+            className="md:w-auto w-10 p-0 md:px-4 shrink-0"
             onClick={async () => {
               try {
                 const API_URL = import.meta.env.NEXT_PUBLIC_API_URL || "";
@@ -90,7 +91,7 @@ export function PaymentsPage() {
               }
             }}
           >
-            <Mail className="w-4 h-4 mr-1" /> Send Reminders
+            <Mail className="w-4 h-4 md:mr-1" /> <span className="hidden md:inline">Send Reminders</span>
           </Button>
           <GenerateDialog />
         </div>
@@ -102,32 +103,19 @@ export function PaymentsPage() {
         <SummaryCard label="Overdue" value={totals.overdue} tone="danger" />
       </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Recent invoices</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr className="text-left">
-                  <th className="px-4 py-3 font-medium">Tenant</th>
-                  <th className="px-4 py-3 font-medium">Property / Room</th>
-                  <th className="px-4 py-3 font-medium">Period</th>
-                  <th className="px-4 py-3 font-medium">Due</th>
-                  <th className="px-4 py-3 font-medium text-right">Amount</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(payments ?? []).map((p) => <PaymentRow key={p.id} p={p} />)}
-                {payments && payments.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No payments to show</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-lg">Recent invoices</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {(payments ?? []).map((p) => <PaymentCard key={p.id} p={p} />)}
+      </div>
+      {payments && payments.length === 0 && (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            No payments to show
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -144,38 +132,61 @@ function SummaryCard({ label, value, tone }: { label: string; value: number; ton
   );
 }
 
-function PaymentRow({ p }: { p: any }) {
+function PaymentCard({ p }: { p: any }) {
   const qc = useQueryClient();
   const mark = useMarkPaymentPaid({ mutation: { onSuccess: () => qc.invalidateQueries() } });
+  
   return (
-    <tr className="border-t border-border hover:bg-muted/30">
-      <td className="px-4 py-3">
-        <div className="font-medium">{p.tenantName}</div>
-      </td>
-      <td className="px-4 py-3 text-muted-foreground">
-        {p.propertyName ?? "—"}{p.roomNumber ? ` · ${p.roomNumber}` : ""}
-      </td>
-      <td className="px-4 py-3">{monthName(p.month)} {p.year}</td>
-      <td className="px-4 py-3 text-muted-foreground">{formatDate(p.dueDate)}</td>
-      <td className="px-4 py-3 text-right font-medium">{formatINR(p.amount)}</td>
-      <td className="px-4 py-3">
-        <Badge variant="outline" className={`capitalize ${STATUS_TONE[p.status] ?? ""}`}>{p.status}</Badge>
-      </td>
-      <td className="px-4 py-3 text-right">
-        {p.status !== "paid" ? (
-          <Select onValueChange={(v) => mark.mutate({ id: p.id, data: { method: v as any } })}>
-            <SelectTrigger className="w-36 ml-auto"><SelectValue placeholder="Mark paid" /></SelectTrigger>
-            <SelectContent>
-              {["upi","cash","bank_transfer","card"].map((m) => <SelectItem key={m} value={m}>{m.replace("_"," ")}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        ) : (
-          <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {p.method ?? "paid"}
-          </span>
-        )}
-      </td>
-    </tr>
+    <Card className="hover-elevate">
+      <CardContent className="p-4 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold truncate">{p.tenantName}</div>
+            <div className="text-xs text-muted-foreground mt-0.5 truncate">
+              {p.propertyName ?? "—"}{p.roomNumber ? ` · Room ${p.roomNumber}` : ""}
+            </div>
+          </div>
+          <Badge variant="outline" className={`capitalize shrink-0 ${STATUS_TONE[p.status] ?? ""}`}>
+            {p.status}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-sm pt-3 border-t border-border">
+          <div>
+            <div className="text-xs text-muted-foreground">Period</div>
+            <div className="font-medium mt-0.5">{monthName(p.month)} {p.year}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-muted-foreground">Amount</div>
+            <div className="font-semibold text-base mt-0.5">{formatINR(p.amount)}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-3">
+          <div className="text-xs text-muted-foreground">
+            Due {formatDate(p.dueDate)}
+          </div>
+          <div>
+            {p.status !== "paid" ? (
+              <Select onValueChange={(v) => mark.mutate({ id: p.id, data: { method: v as any } })}>
+                <SelectTrigger className="w-32 h-8 text-xs">
+                  <SelectValue placeholder="Mark paid" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["upi", "cash", "bank_transfer", "card"].map((m) => (
+                    <SelectItem key={m} value={m}>{m.replace("_", " ")}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-xs font-medium inline-flex items-center gap-1 text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-md">
+                <CheckCircle2 className="w-3.5 h-3.5" /> {p.method?.replace("_", " ") ?? "paid"}
+              </span>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -193,7 +204,16 @@ function GenerateDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline"><RefreshCw className="w-4 h-4 mr-1" /> Generate monthly</Button>
+        <>
+          <Button variant="outline" className="hidden md:flex"><RefreshCw className="w-4 h-4 mr-1" /> Generate monthly</Button>
+          <Button 
+            size="icon" 
+            className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40 bg-primary text-primary-foreground hover:bg-primary/90"
+            style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+          >
+            <RefreshCw className="w-6 h-6" />
+          </Button>
+        </>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Generate rent invoices</DialogTitle></DialogHeader>

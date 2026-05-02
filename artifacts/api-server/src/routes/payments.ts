@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, paymentsTable, tenantsTable, bedsTable, roomsTable, propertiesTable, bookingRequestsTable } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
 import {
   CreatePaymentBody,
   ListPaymentsQueryParams,
@@ -27,7 +27,18 @@ function ser(p: typeof paymentsTable.$inferSelect) {
 router.get("/payments", async (req, res) => {
   const { status, tenantId } = ListPaymentsQueryParams.parse(req.query);
   const conds = [];
-  if (status) conds.push(eq(paymentsTable.status, status));
+  const todayFilter = new Date().toISOString().slice(0, 10);
+  
+  if (status === "overdue") {
+    conds.push(eq(paymentsTable.status, "pending"));
+    conds.push(lt(paymentsTable.dueDate, todayFilter));
+  } else if (status === "pending") {
+    conds.push(eq(paymentsTable.status, "pending"));
+    conds.push(gte(paymentsTable.dueDate, todayFilter));
+  } else if (status) {
+    conds.push(eq(paymentsTable.status, status));
+  }
+  
   if (tenantId) conds.push(eq(paymentsTable.tenantId, tenantId));
 
   const baseQuery = db
