@@ -47,18 +47,18 @@ export function PropertiesPage() {
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <>
-              <Button className="hidden md:flex">
-                <Plus className="w-4 h-4 mr-1" /> Add property
-              </Button>
-              <Button 
-                size="icon" 
-                className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
-                style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
-              >
-                <Plus className="w-6 h-6" />
-              </Button>
-            </>
+            <Button className="hidden md:flex">
+              <Plus className="w-4 h-4 mr-1" /> Add property
+            </Button>
+          </DialogTrigger>
+          <DialogTrigger asChild>
+            <Button
+              size="icon"
+              className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
+              style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+            >
+              <Plus className="w-6 h-6" />
+            </Button>
           </DialogTrigger>
           <NewPropertyDialog onClose={() => setOpen(false)} />
         </Dialog>
@@ -70,42 +70,42 @@ export function PropertiesPage() {
         {(properties ?? []).map((property) => {
           const p = property as PropertyCard;
           return (
-          <Card key={p.id} className="overflow-hidden">
-            <div className="h-2 bg-primary" />
-            <CardContent className="p-5 space-y-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold">{p.name}</h3>
-                  <div className="text-xs text-muted-foreground mt-0.5">{p.totalFloors} floors</div>
+            <Card key={p.id} className="overflow-hidden">
+              <div className="h-2 bg-primary" />
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold">{p.name}</h3>
+                    <div className="text-xs text-muted-foreground mt-0.5">{p.totalFloors} floors</div>
+                  </div>
+                  <div className="w-10 h-10 rounded-md bg-primary/10 text-primary grid place-items-center">
+                    <Building2 className="w-5 h-5" />
+                  </div>
                 </div>
-                <div className="w-10 h-10 rounded-md bg-primary/10 text-primary grid place-items-center">
-                  <Building2 className="w-5 h-5" />
+                <div className="text-sm text-muted-foreground flex items-start gap-2">
+                  <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{p.address}, {p.city}</span>
                 </div>
-              </div>
-              <div className="text-sm text-muted-foreground flex items-start gap-2">
-                <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{p.address}, {p.city}</span>
-              </div>
-              <div className="text-sm text-muted-foreground flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                {p.contactPhone}
-              </div>
-              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
-                <Stat label="Rooms" value={p.totalRooms ?? 0} />
-                <Stat label="Beds" value={p.totalBeds ?? 0} icon={Bed} />
-                <Stat label="Occupied" value={p.occupiedBeds ?? 0} highlight />
-              </div>
-              {/* Add Room button per property */}
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full mt-1"
-                onClick={() => setAddRoomPropertyId(p.id)}
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" /> Add room
-              </Button>
-            </CardContent>
-          </Card>
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  {p.contactPhone}
+                </div>
+                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
+                  <Stat label="Rooms" value={p.totalRooms ?? 0} />
+                  <Stat label="Beds" value={p.totalBeds ?? 0} icon={Bed} />
+                  <Stat label="Occupied" value={p.occupiedBeds ?? 0} highlight />
+                </div>
+                {/* Add Room button per property */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full mt-1"
+                  onClick={() => setAddRoomPropertyId(p.id)}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add room
+                </Button>
+              </CardContent>
+            </Card>
           );
         })}
       </div>

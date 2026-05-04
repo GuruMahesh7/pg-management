@@ -83,16 +83,16 @@ export function RoomsPage() {
           </Select>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <>
-                <Button className="hidden md:flex"><Plus className="w-4 h-4 mr-1" /> Add room</Button>
-                <Button 
-                  size="icon" 
-                  className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
-                  style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
-                >
-                  <Plus className="w-6 h-6" />
-                </Button>
-              </>
+              <Button className="hidden md:flex"><Plus className="w-4 h-4 mr-1" /> Add room</Button>
+            </DialogTrigger>
+            <DialogTrigger asChild>
+              <Button
+                size="icon"
+                className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
+                style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+              >
+                <Plus className="w-6 h-6" />
+              </Button>
             </DialogTrigger>
             <NewRoomDialog onClose={() => setOpen(false)} />
           </Dialog>
@@ -204,16 +204,14 @@ function BedTile({ bed }: { bed: BedT }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className={`text-left p-3 rounded-md border transition-colors hover-elevate ${
-          bed.isOccupied
+        className={`text-left p-3 rounded-md border transition-colors hover-elevate ${bed.isOccupied
             ? "bg-primary/5 border-primary/30"
             : "bg-muted/30 border-dashed border-border"
-        }`}
+          }`}
       >
         <div className="flex items-center gap-2">
-          <div className={`w-7 h-7 rounded grid place-items-center ${
-            bed.isOccupied ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-          }`}>
+          <div className={`w-7 h-7 rounded grid place-items-center ${bed.isOccupied ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            }`}>
             <Bed className="w-3.5 h-3.5" />
           </div>
           <div className="text-xs font-medium">{bed.bedLabel}</div>
@@ -361,7 +359,7 @@ function EditRoomDialog({ room, onClose }: { room: RoomWithBeds; onClose: () => 
             <Select value={form.roomType} onValueChange={(v: any) => setForm({ ...form, roomType: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {["single","double","triple","quad","dormitory"].map((t) => (
+                {["single", "double", "triple", "quad", "dormitory"].map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
               </SelectContent>
@@ -453,7 +451,7 @@ function NewRoomDialog({ onClose }: { onClose: () => void }) {
             <Select value={form.roomType} onValueChange={(v: any) => setForm({ ...form, roomType: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {["single","double","triple","quad","dormitory"].map((t) => (
+                {["single", "double", "triple", "quad", "dormitory"].map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
               </SelectContent>

@@ -59,13 +59,13 @@ export function PaymentsPage() {
               <SelectItem value="overdue">Overdue</SelectItem>
             </SelectContent>
           </Select>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="md:w-auto w-10 p-0 md:px-4 shrink-0"
             onClick={async () => {
               try {
                 const API_URL = import.meta.env.NEXT_PUBLIC_API_URL || "";
-                const res = await fetch(`${API_URL}/api/payments/send-reminders`, { 
+                const res = await fetch(`${API_URL}/api/payments/send-reminders`, {
                   method: 'POST',
                   credentials: 'include'
                 });
@@ -135,7 +135,7 @@ function SummaryCard({ label, value, tone }: { label: string; value: number; ton
 function PaymentCard({ p }: { p: any }) {
   const qc = useQueryClient();
   const mark = useMarkPaymentPaid({ mutation: { onSuccess: () => qc.invalidateQueries() } });
-  
+
   return (
     <Card className="hover-elevate">
       <CardContent className="p-4 space-y-4">
@@ -204,16 +204,16 @@ function GenerateDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <>
-          <Button variant="outline" className="hidden md:flex"><RefreshCw className="w-4 h-4 mr-1" /> Generate monthly</Button>
-          <Button 
-            size="icon" 
-            className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40 bg-primary text-primary-foreground hover:bg-primary/90"
-            style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
-          >
-            <RefreshCw className="w-6 h-6" />
-          </Button>
-        </>
+        <Button variant="outline" className="hidden md:flex"><RefreshCw className="w-4 h-4 mr-1" /> Generate monthly</Button>
+      </DialogTrigger>
+      <DialogTrigger asChild>
+        <Button
+          size="icon"
+          className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40 bg-primary text-primary-foreground hover:bg-primary/90"
+          style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+        >
+          <RefreshCw className="w-6 h-6" />
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Generate rent invoices</DialogTitle></DialogHeader>

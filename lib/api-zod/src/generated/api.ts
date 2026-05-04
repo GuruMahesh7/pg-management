@@ -293,6 +293,7 @@ export const CreateTenantBody = zod.object({
   permanentAddress: zod.string().nullish(),
   joinedAt: zod.coerce.date(),
   status: zod.enum(["active", "inactive", "vacated"]).optional(),
+  bedId: zod.number().optional(),
 });
 
 export const GetTenantParams = zod.object({

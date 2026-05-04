@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   useListTenants,
   useCreateTenant,
+  useListRooms,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,10 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Mail, Phone, BedDouble, Search } from "lucide-react";
+import { Plus, Mail, Phone, BedDouble, Search, CheckCircle2 } from "lucide-react";
 import { initials, formatINR, formatDate } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export function TenantsPage() {
   const { data: tenants } = useListTenants();
@@ -37,16 +39,16 @@ export function TenantsPage() {
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <>
-              <Button className="hidden md:flex"><Plus className="w-4 h-4 mr-1" /> Add tenant</Button>
-              <Button 
-                size="icon" 
-                className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
-                style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
-              >
-                <Plus className="w-6 h-6" />
-              </Button>
-            </>
+            <Button className="hidden md:flex"><Plus className="w-4 h-4 mr-1" /> Add tenant</Button>
+          </DialogTrigger>
+          <DialogTrigger asChild>
+            <Button
+              size="icon"
+              className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
+              style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+            >
+              <Plus className="w-6 h-6" />
+            </Button>
           </DialogTrigger>
           <NewTenantDialog onClose={() => setOpen(false)} />
         </Dialog>
@@ -106,6 +108,9 @@ export function TenantsPage() {
 function NewTenantDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const create = useCreateTenant({ mutation: { onSuccess: () => { qc.invalidateQueries(); onClose(); } } });
+  const { data: rooms } = useListRooms();
+  const vacantBeds = (rooms ?? []).flatMap(r => r.beds.filter(b => !b.isOccupied).map(b => ({ ...b, roomNumber: r.roomNumber, propertyName: r.propertyName })));
+
   const [form, setForm] = useState({
     fullName: "", email: "", phone: "",
     gender: "" as "" | "male" | "female" | "other",
@@ -115,7 +120,55 @@ function NewTenantDialog({ onClose }: { onClose: () => void }) {
     idProofNumber: "",
     permanentAddress: "",
     joinedAt: new Date().toISOString().slice(0, 10),
+    bedId: "none",
   });
+
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+
+  const handleSendOtp = async () => {
+    if (!form.email) return toast.error("Please enter email first");
+    setIsSendingOtp(true);
+    try {
+      const res = await fetch("/api/verification/send-email-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email })
+      });
+      if (!res.ok) throw new Error("Failed to send OTP");
+      setOtpSent(true);
+      toast.success("OTP sent to email");
+    } catch (e) {
+      toast.error("Failed to send OTP");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp) return toast.error("Please enter OTP");
+    setIsVerifyingOtp(true);
+    try {
+      const res = await fetch("/api/verification/verify-email-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email, otp })
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.message || "Invalid OTP");
+      }
+      setOtpVerified(true);
+      toast.success("Email verified");
+    } catch (e: any) {
+      toast.error(e.message || "Invalid OTP");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
   return (
     <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
       <DialogHeader><DialogTitle>Add tenant</DialogTitle></DialogHeader>
@@ -123,26 +176,52 @@ function NewTenantDialog({ onClose }: { onClose: () => void }) {
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          const { gender, idProofType, ...rest } = form;
+          if (!otpVerified) {
+            toast.error("Please verify the email with OTP first");
+            return;
+          }
+          const { gender, idProofType, bedId, ...rest } = form;
           create.mutate({
             data: {
               ...rest,
               gender: gender || undefined,
               idProofType: idProofType || undefined,
+              bedId: bedId !== "none" ? Number(bedId) : undefined,
             } as any,
           });
         }}
       >
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-2 col-span-2"><Label>Full name</Label><Input required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></div>
-          <div className="grid gap-2"><Label>Email</Label><Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div className="grid gap-2"><Label>Phone</Label><Input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+          
+          <div className="grid gap-2 col-span-2 sm:col-span-1">
+            <Label>Email</Label>
+            <div className="flex gap-2">
+              <Input type="email" required value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); setOtpSent(false); setOtpVerified(false); }} disabled={otpVerified} />
+              {!otpVerified && (
+                <Button type="button" variant="outline" onClick={handleSendOtp} disabled={isSendingOtp || !form.email}>
+                  {isSendingOtp ? "Sending..." : (otpSent ? "Resend" : "Send OTP")}
+                </Button>
+              )}
+            </div>
+            {otpSent && !otpVerified && (
+              <div className="flex gap-2 mt-2">
+                <Input placeholder="Enter OTP" value={otp} onChange={e => setOtp(e.target.value)} maxLength={6} />
+                <Button type="button" onClick={handleVerifyOtp} disabled={isVerifyingOtp || otp.length !== 6}>Verify</Button>
+              </div>
+            )}
+            {otpVerified && (
+              <div className="text-xs text-emerald-600 flex items-center gap-1 mt-1"><CheckCircle2 className="w-3.5 h-3.5"/> Email verified</div>
+            )}
+          </div>
+
+          <div className="grid gap-2 col-span-2 sm:col-span-1"><Label>Phone (Used as password)</Label><Input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="grid gap-2">
             <Label>Gender</Label>
             <Select value={form.gender} onValueChange={(v: any) => setForm({ ...form, gender: v })}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
-                {["male","female","other"].map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                {["male", "female", "other"].map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -154,12 +233,26 @@ function NewTenantDialog({ onClose }: { onClose: () => void }) {
             <Select value={form.idProofType} onValueChange={(v: any) => setForm({ ...form, idProofType: v })}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
-                {["aadhaar","passport","driving_license","voter_id","pan"].map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                {["aadhaar", "passport", "driving_license", "voter_id", "pan"].map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="grid gap-2"><Label>ID number</Label><Input value={form.idProofNumber} onChange={(e) => setForm({ ...form, idProofNumber: e.target.value })} /></div>
           <div className="grid gap-2"><Label>Joined</Label><Input type="date" required value={form.joinedAt} onChange={(e) => setForm({ ...form, joinedAt: e.target.value })} /></div>
+          <div className="grid gap-2 col-span-2">
+            <Label>Assign Bed (Optional)</Label>
+            <Select value={form.bedId} onValueChange={(v) => setForm({ ...form, bedId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select an available bed" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Do not assign yet</SelectItem>
+                {vacantBeds.map(b => (
+                  <SelectItem key={b.id} value={String(b.id)}>
+                    {b.propertyName} - Room {b.roomNumber} - Bed {b.bedLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid gap-2 col-span-2"><Label>Permanent address</Label><Textarea value={form.permanentAddress} onChange={(e) => setForm({ ...form, permanentAddress: e.target.value })} /></div>
         </div>
         <DialogFooter>
