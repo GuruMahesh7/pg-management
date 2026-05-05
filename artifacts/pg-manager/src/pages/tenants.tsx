@@ -3,6 +3,7 @@ import {
   useListTenants,
   useCreateTenant,
   useListRooms,
+  customFetch,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -133,16 +134,14 @@ function NewTenantDialog({ onClose }: { onClose: () => void }) {
     if (!form.email) return toast.error("Please enter email first");
     setIsSendingOtp(true);
     try {
-      const res = await fetch("/api/verification/send-email-otp", {
+      await customFetch("/api/verification/send-email-otp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: form.email })
       });
-      if (!res.ok) throw new Error("Failed to send OTP");
       setOtpSent(true);
       toast.success("OTP sent to email");
-    } catch (e) {
-      toast.error("Failed to send OTP");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send OTP");
     } finally {
       setIsSendingOtp(false);
     }
@@ -152,15 +151,10 @@ function NewTenantDialog({ onClose }: { onClose: () => void }) {
     if (!otp) return toast.error("Please enter OTP");
     setIsVerifyingOtp(true);
     try {
-      const res = await fetch("/api/verification/verify-email-otp", {
+      await customFetch("/api/verification/verify-email-otp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: form.email, otp })
       });
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.message || "Invalid OTP");
-      }
       setOtpVerified(true);
       toast.success("Email verified");
     } catch (e: any) {
